@@ -1,4 +1,24 @@
-# Best Deal Store — Final Project
+# Best Deal Store
+
+## CST8915 - Final Project: Deploying and Managing the Algonquin Pet Store (On Steroids)
+
+**Student Name**: IDRIS JOVIAL SOP NWABO
+
+**Student ID**: 041199877
+
+**Course**: CST8915 Full Stack Cloud Native Development
+
+**Semester**: Winter 2026
+
+
+---
+
+## Demo Video
+
+🎥 [Watch Demo Video](https://www.youtube.com/watch?v=oS4W5r-CNzo)
+
+---
+
 
 This repository holds **Kubernetes manifests**, **local Docker Compose** for the full stack, and **architecture** assets for the **Best Deal Store**: a simplified, cloud-native e-commerce demo deployed on **Azure Kubernetes Service (AKS)**.
 
