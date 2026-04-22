@@ -1,6 +1,6 @@
 # Best Deal Store
 
-## CST8915 - Final Project: Deploying and Managing the Algonquin Pet Store (On Steroids)
+## CST8915 - Final Project: Best Deal Store Cloud-Native App
 
 **Student Name**: IDRIS JOVIAL SOP NWABO
 
