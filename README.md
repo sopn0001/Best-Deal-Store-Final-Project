@@ -49,6 +49,33 @@ A simplified, microservices-based e-commerce web application deployed on **Azure
 
 ---
 
+## Local run (Docker images from Docker Hub)
+
+Use **`docker-compose.hub.yml`** to pull **`idrissop/*`** images (override with `DOCKERHUB_USER`) and run MongoDB, RabbitMQ, all APIs, and both UIs on one machine.
+
+```bash
+cd "/path/to/Best-Deal-Store-Final-Project"
+export DOCKERHUB_USER=idrissop
+docker compose -f docker-compose.hub.yml pull
+docker compose -f docker-compose.hub.yml up
+```
+
+- **Store Front:** http://localhost:8080  
+- **Store Admin:** http://localhost:8081  
+- **RabbitMQ management UI:** http://localhost:15672 (login `bestdeal` / `bestdeal`)
+
+Optional sample data: Compose publishes Mongo on **`localhost:27018`** (so it does not fight another instance on 27017):
+
+```bash
+export MONGO_URL=mongodb://localhost:27018
+cd "../Best-Deal-Category-and-Product-Service"
+python seed_data.py --reset
+```
+
+Stop the stack: `Ctrl+C` then `docker compose -f docker-compose.hub.yml down` (add `-v` to remove the Mongo volume).
+
+---
+
 ## Deployment Instructions
 
 ### Prerequisites
@@ -90,11 +117,12 @@ sed -i '' 's/idrissop/YOUR_DOCKERHUB_USERNAME/g' all-manifests.yaml
 
 ### 3. Apply Manifests
 
-Apply ConfigMap and Secret first, then the rest of the stack:
+Create the **namespace first** (ConfigMap and Secret require `namespace: best-deal` to exist), then the rest:
 
 ```bash
-kubectl apply -f "Deployment Files/01-configmap.yaml"
-kubectl apply -f "Deployment Files/02-secret.yaml"
+kubectl apply -f "Deployment Files/00-namespace.yaml"
+kubectl apply -f "Deployment Files/configmap.yaml"
+kubectl apply -f "Deployment Files/secret.yaml"
 kubectl apply -f "Deployment Files/all-manifests.yaml"
 ```
 
@@ -110,16 +138,33 @@ Wait for all pods to reach `Running` status.
 
 ---
 
-### 5. Get External IPs
+### 5. Open the websites
 
 ```bash
 kubectl get svc -n best-deal
 ```
 
-Look for `EXTERNAL-IP` on the `store-front` and `store-admin` LoadBalancer services (may take 2–3 minutes to provision).
+For `store-front` and `store-admin`, wait until **EXTERNAL-IP** is a public address (not `<pending>`). On AKS this can take **several minutes** the first time.
 
 - **Store Front**: `http://<store-front-EXTERNAL-IP>`
 - **Store Admin**: `http://<store-admin-EXTERNAL-IP>`
+
+If **EXTERNAL-IP stays `<pending>`** for a long time, check quotas / permissions for public load balancers, or use a tunnel instead of the public IP:
+
+```bash
+kubectl port-forward -n best-deal svc/store-front 8080:80
+```
+
+Then open **http://localhost:8080** in your browser (same idea for admin: `svc/store-admin 8081:80`).
+
+If the page loads but **products or orders fail**, check backend pods and logs:
+
+```bash
+kubectl get pods -n best-deal
+kubectl logs -n best-deal deploy/category-product-service --tail=50
+kubectl logs -n best-deal deploy/order-service --tail=50
+kubectl describe pod -n best-deal -l app=store-front
+```
 
 ---
 

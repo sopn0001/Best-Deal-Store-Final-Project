@@ -6,4 +6,5 @@ metadata:
 data:
   DB_NAME: "bestdeal"
   MONGO_URL: "mongodb://mongodb:27017"
-  RABBITMQ_URL: "amqp://rabbitmq:5672"
+  # Non-guest user required: RabbitMQ rejects "guest" from other pods by default.
+  RABBITMQ_URL: "amqp://bestdeal:bestdeal@rabbitmq:5672"

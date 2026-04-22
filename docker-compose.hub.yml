@@ -1,0 +1,116 @@
+# Run the full Best Deal Store locally using images from Docker Hub.
+#
+# Prerequisites: Docker Desktop (or Docker Engine + Compose v2)
+#
+# Usage:
+#   cd "Best-Deal-Store-Final-Project"
+#   export DOCKERHUB_USER=idrissop   # optional; default below is idrissop
+#   docker compose -f docker-compose.hub.yml pull
+#   docker compose -f docker-compose.hub.yml up
+#
+# URLs:
+#   Store Front  http://localhost:8080
+#   Store Admin  http://localhost:8081
+#   RabbitMQ UI  http://localhost:15672  (user / pass: bestdeal / bestdeal)
+#
+# Seed sample data from your machine (host port for Mongo — see mongo.ports below):
+#   export MONGO_URL=mongodb://localhost:27018
+#   cd ../Best-Deal-Category-and-Product-Service && python seed_data.py --reset
+#
+# If 27018 is also taken, change the left side of mongo.ports (e.g. "27019:27017") and MONGO_URL to match.
+
+services:
+  mongo:
+    image: mongo:7
+    ports:
+      # Host 27018 avoids clashing with another MongoDB already using 27017 on your Mac.
+      - "27018:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    environment:
+      RABBITMQ_DEFAULT_USER: bestdeal
+      RABBITMQ_DEFAULT_PASS: bestdeal
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+  category-product-service:
+    image: ${DOCKERHUB_USER:-idrissop}/best-deal-category-and-product-service:latest
+    pull_policy: always
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: bestdeal
+    ports:
+      - "5001:5001"
+    depends_on:
+      - mongo
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:5001/health')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+
+  order-service:
+    image: ${DOCKERHUB_USER:-idrissop}/best-deal-order-service:latest
+    pull_policy: always
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: bestdeal
+      RABBITMQ_URL: amqp://bestdeal:bestdeal@rabbitmq:5672
+    ports:
+      - "3002:3002"
+    depends_on:
+      - mongo
+      - rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3002/health || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 90s
+
+  makeline-service:
+    image: ${DOCKERHUB_USER:-idrissop}/best-deal-makeline-service:latest
+    pull_policy: always
+    environment:
+      MONGO_URL: mongodb://mongo:27017
+      DB_NAME: bestdeal
+      RABBITMQ_URL: amqp://bestdeal:bestdeal@rabbitmq:5672
+    depends_on:
+      - mongo
+      - rabbitmq
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:5002/health')\""]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+
+  store-front:
+    image: ${DOCKERHUB_USER:-idrissop}/best-deal-store-front:latest
+    pull_policy: always
+    ports:
+      - "8080:80"
+    depends_on:
+      category-product-service:
+        condition: service_healthy
+      order-service:
+        condition: service_healthy
+
+  store-admin:
+    image: ${DOCKERHUB_USER:-idrissop}/best-deal-store-admin:latest
+    pull_policy: always
+    ports:
+      - "8081:80"
+    depends_on:
+      category-product-service:
+        condition: service_healthy
+      makeline-service:
+        condition: service_healthy
+
+volumes:
+  mongo-data:

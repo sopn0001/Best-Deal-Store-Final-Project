@@ -1,14 +1,10 @@
-# Best Deal Store — remaining Kubernetes manifests (ConfigMap + Secret are in 01-configmap.yaml and 02-secret.yaml).
+# Best Deal Store — workloads only (namespace, ConfigMap, Secret are separate files).
 # Apply order:
-#   kubectl apply -f "Deployment Files/01-configmap.yaml"
-#   kubectl apply -f "Deployment Files/02-secret.yaml"
+#   kubectl apply -f "Deployment Files/00-namespace.yaml"
+#   kubectl apply -f "Deployment Files/configmap.yaml"
+#   kubectl apply -f "Deployment Files/secret.yaml"
 #   kubectl apply -f "Deployment Files/all-manifests.yaml"
 
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: best-deal
----
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
@@ -30,9 +26,6 @@ spec:
           image: mongo:7
           ports:
             - containerPort: 27017
-          envFrom:
-            - configMapRef:
-                name: best-deal-config
           volumeMounts:
             - name: mongo-data
               mountPath: /data/db
@@ -75,6 +68,11 @@ spec:
       containers:
         - name: rabbitmq
           image: rabbitmq:3-management
+          env:
+            - name: RABBITMQ_DEFAULT_USER
+              value: bestdeal
+            - name: RABBITMQ_DEFAULT_PASS
+              value: bestdeal
           ports:
             - containerPort: 5672
             - containerPort: 15672
@@ -111,6 +109,7 @@ spec:
       containers:
         - name: category-product-service
           image: idrissop/best-deal-category-and-product-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 5001
           envFrom:
@@ -153,6 +152,7 @@ spec:
       containers:
         - name: order-service
           image: idrissop/best-deal-order-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 3002
           envFrom:
@@ -195,6 +195,7 @@ spec:
       containers:
         - name: makeline-service
           image: idrissop/best-deal-makeline-service:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 5002
           envFrom:
@@ -237,14 +238,30 @@ spec:
       containers:
         - name: store-front
           image: idrissop/best-deal-store-front:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: store-front
   namespace: best-deal
+  annotations:
+    # Helps Azure LB HTTP health checks reach nginx (path must return 200).
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/"
 spec:
   type: LoadBalancer
   selector:
@@ -271,14 +288,29 @@ spec:
       containers:
         - name: store-admin
           image: idrissop/best-deal-store-admin:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 2
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 10
+            periodSeconds: 15
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: store-admin
   namespace: best-deal
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-health-probe-request-path: "/"
 spec:
   type: LoadBalancer
   selector:
