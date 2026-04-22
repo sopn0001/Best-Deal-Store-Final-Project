@@ -1,0 +1,311 @@
+# Best Deal Store — full Kubernetes stack (formerly 00–09).
+# Apply once:
+#   kubectl apply -f "Deployment Files/all-manifests.yaml"
+# Order: Namespace → ConfigMap → Secret → MongoDB → RabbitMQ → APIs → frontends.
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: best-deal
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: best-deal-config
+  namespace: best-deal
+data:
+  DB_NAME: "bestdeal"
+  MONGO_URL: "mongodb://mongodb:27017"
+  RABBITMQ_URL: "amqp://rabbitmq:5672"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: best-deal-secret
+  namespace: best-deal
+type: Opaque
+# Values are base64-encoded. Change before production use.
+# echo -n 'value' | base64
+data:
+  MONGO_USERNAME: YWRtaW4=       # admin
+  MONGO_PASSWORD: cGFzc3dvcmQ=   # password
+  RABBITMQ_USER: Z3Vlc3Q=        # guest
+  RABBITMQ_PASS: Z3Vlc3Q=        # guest
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+  namespace: best-deal
+spec:
+  serviceName: mongodb
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      containers:
+        - name: mongodb
+          image: mongo:7
+          ports:
+            - containerPort: 27017
+          envFrom:
+            - configMapRef:
+                name: best-deal-config
+          volumeMounts:
+            - name: mongo-data
+              mountPath: /data/db
+  volumeClaimTemplates:
+    - metadata:
+        name: mongo-data
+      spec:
+        accessModes: ["ReadWriteOnce"]
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb
+  namespace: best-deal
+spec:
+  selector:
+    app: mongodb
+  clusterIP: None
+  ports:
+    - port: 27017
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rabbitmq
+  namespace: best-deal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rabbitmq
+  template:
+    metadata:
+      labels:
+        app: rabbitmq
+    spec:
+      containers:
+        - name: rabbitmq
+          image: rabbitmq:3-management
+          ports:
+            - containerPort: 5672
+            - containerPort: 15672
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rabbitmq
+  namespace: best-deal
+spec:
+  selector:
+    app: rabbitmq
+  ports:
+    - name: amqp
+      port: 5672
+    - name: management
+      port: 15672
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: category-product-service
+  namespace: best-deal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: category-product-service
+  template:
+    metadata:
+      labels:
+        app: category-product-service
+    spec:
+      containers:
+        - name: category-product-service
+          image: idrissop/best-deal-category-and-product-service:latest
+          ports:
+            - containerPort: 5001
+          envFrom:
+            - configMapRef:
+                name: best-deal-config
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5001
+            initialDelaySeconds: 5
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: category-product-service
+  namespace: best-deal
+spec:
+  selector:
+    app: category-product-service
+  ports:
+    - port: 5001
+      targetPort: 5001
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: best-deal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+    spec:
+      containers:
+        - name: order-service
+          image: idrissop/best-deal-order-service:latest
+          ports:
+            - containerPort: 3002
+          envFrom:
+            - configMapRef:
+                name: best-deal-config
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3002
+            initialDelaySeconds: 10
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: best-deal
+spec:
+  selector:
+    app: order-service
+  ports:
+    - port: 3002
+      targetPort: 3002
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: makeline-service
+  namespace: best-deal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: makeline-service
+  template:
+    metadata:
+      labels:
+        app: makeline-service
+    spec:
+      containers:
+        - name: makeline-service
+          image: idrissop/best-deal-makeline-service:latest
+          ports:
+            - containerPort: 5002
+          envFrom:
+            - configMapRef:
+                name: best-deal-config
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5002
+            initialDelaySeconds: 15
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: makeline-service
+  namespace: best-deal
+spec:
+  selector:
+    app: makeline-service
+  ports:
+    - port: 5002
+      targetPort: 5002
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: store-front
+  namespace: best-deal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: store-front
+  template:
+    metadata:
+      labels:
+        app: store-front
+    spec:
+      containers:
+        - name: store-front
+          image: idrissop/best-deal-store-front:latest
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: store-front
+  namespace: best-deal
+spec:
+  type: LoadBalancer
+  selector:
+    app: store-front
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: store-admin
+  namespace: best-deal
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: store-admin
+  template:
+    metadata:
+      labels:
+        app: store-admin
+    spec:
+      containers:
+        - name: store-admin
+          image: idrissop/best-deal-store-admin:latest
+          ports:
+            - containerPort: 80
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: store-admin
+  namespace: best-deal
+spec:
+  type: LoadBalancer
+  selector:
+    app: store-admin
+  ports:
+    - port: 80
+      targetPort: 80
