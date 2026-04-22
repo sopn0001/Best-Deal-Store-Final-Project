@@ -83,15 +83,18 @@ Replace `idrissop` in the manifest with your Docker Hub username if needed:
 ```bash
 cd "Deployment Files"
 sed -i '' 's/idrissop/YOUR_DOCKERHUB_USERNAME/g' all-manifests.yaml
+# ConfigMap and Secret files do not contain image names; no change needed there for Docker Hub username.
 ```
 
 ---
 
 ### 3. Apply Manifests
 
-One file contains the full stack (same order as the former `00`–`09` files):
+Apply ConfigMap and Secret first, then the rest of the stack:
 
 ```bash
+kubectl apply -f "Deployment Files/01-configmap.yaml"
+kubectl apply -f "Deployment Files/02-secret.yaml"
 kubectl apply -f "Deployment Files/all-manifests.yaml"
 ```
 

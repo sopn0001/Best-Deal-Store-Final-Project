@@ -1,36 +1,13 @@
-# Best Deal Store — full Kubernetes stack (formerly 00–09).
-# Apply once:
+# Best Deal Store — remaining Kubernetes manifests (ConfigMap + Secret are in 01-configmap.yaml and 02-secret.yaml).
+# Apply order:
+#   kubectl apply -f "Deployment Files/01-configmap.yaml"
+#   kubectl apply -f "Deployment Files/02-secret.yaml"
 #   kubectl apply -f "Deployment Files/all-manifests.yaml"
-# Order: Namespace → ConfigMap → Secret → MongoDB → RabbitMQ → APIs → frontends.
 
 apiVersion: v1
 kind: Namespace
 metadata:
   name: best-deal
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: best-deal-config
-  namespace: best-deal
-data:
-  DB_NAME: "bestdeal"
-  MONGO_URL: "mongodb://mongodb:27017"
-  RABBITMQ_URL: "amqp://rabbitmq:5672"
----
-apiVersion: v1
-kind: Secret
-metadata:
-  name: best-deal-secret
-  namespace: best-deal
-type: Opaque
-# Values are base64-encoded. Change before production use.
-# echo -n 'value' | base64
-data:
-  MONGO_USERNAME: YWRtaW4=       # admin
-  MONGO_PASSWORD: cGFzc3dvcmQ=   # password
-  RABBITMQ_USER: Z3Vlc3Q=        # guest
-  RABBITMQ_PASS: Z3Vlc3Q=        # guest
 ---
 apiVersion: apps/v1
 kind: StatefulSet
